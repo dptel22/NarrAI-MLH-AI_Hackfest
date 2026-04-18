@@ -1,63 +1,40 @@
-# DataNarrator — MLH AI Hackfest
+# DataNarrator - MLH AI Hackfest
 
-> **Query your Snowflake data warehouse, generate a natural-language narrative with Google Gemini, and listen to it via ElevenLabs text-to-speech — all from a clean browser UI.**
-
----
-
-## Table of Contents
-
-- [Architecture](#architecture)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Environment Variables](#environment-variables)
-  - [Running Locally](#running-locally)
-- [API Reference](#api-reference)
-- [Running Tests](#running-tests)
-- [Deployment (Render)](#deployment-render)
-- [Tech Stack](#tech-stack)
+> Upload a CSV, optionally log it to Supabase, generate a natural-language insight with Google Gemini, and listen to it with ElevenLabs from a simple browser UI.
 
 ---
 
 ## Architecture
 
-```
-Browser (HTML/CSS/JS)
-       │  POST /narrate  { sql, question }
-       ▼
+```text
+Browser (index.html)
+   |  POST /analyze (multipart CSV)
+   |  POST /followup { insight, question }
+   v
 FastAPI backend (main.py)
-  ├── SnowflakeAgent   → executes SQL, returns row dicts
-  ├── GeminiAgent      → generates narrative from rows + question
-  └── ElevenLabsAgent  → converts narrative to MP3 audio
-       │  { records, narrative, audio_base64 }
-       ▼
-Browser renders table, narrative text, and plays audio
+   |- supabase_agent.py    -> optional CSV row ingestion
+   |- gemini_agent.py      -> insight + chart generation
+   `- elevenlabs_agent.py  -> MP3 synthesis
 ```
 
 ---
 
 ## Project Structure
 
-```
-dataNarrator/
-├── backend/
-│   ├── main.py               # FastAPI app — /health, /narrate, /query
-│   ├── snowflake_agent.py    # Snowflake connection & SQL execution
-│   ├── gemini_agent.py       # Google Gemini narrative generation
-│   ├── elevenlabs_agent.py   # ElevenLabs TTS synthesis
-│   ├── utils.py              # Shared helpers (env vars, table formatting)
-│   └── requirements.txt      # Python dependencies
-├── frontend/
-│   ├── index.html            # Single-page UI
-│   ├── style.css             # Dark-theme stylesheet
-│   └── app.js                # Fetch API calls + DOM logic
-├── tests/
-│   ├── test_snowflake.py     # Unit tests for SnowflakeAgent
-│   ├── test_gemini.py        # Unit tests for GeminiAgent
-│   └── test_elevenlabs.py    # Unit tests for ElevenLabsAgent
-├── .env.example              # Environment variable template
-├── render.yaml               # Render.com deployment config
-└── README.md
+```text
+DataNarrator--MLH-AI-Hackfest/
+|-- main.py
+|-- index.html
+|-- supabase_agent.py
+|-- gemini_agent.py
+|-- elevenlabs_agent.py
+|-- requirements.txt
+|-- render.yaml
+|-- tests/
+|   |-- test_main.py
+|   |-- test_gemini.py
+|   `-- test_elevenlabs.py
+`-- README.md
 ```
 
 ---
@@ -68,11 +45,11 @@ dataNarrator/
 
 | Tool | Version |
 |------|---------|
-| Python | ≥ 3.11 |
+| Python | >= 3.11 |
 | pip | latest |
-| Snowflake account | any edition |
 | Google Gemini API key | [aistudio.google.com](https://aistudio.google.com/) |
 | ElevenLabs API key | [elevenlabs.io](https://elevenlabs.io/) |
+| Supabase project | optional |
 
 ### Environment Variables
 
@@ -80,42 +57,26 @@ Copy the example file and fill in your credentials:
 
 ```bash
 cp .env.example .env
-# then edit .env with your actual values
 ```
 
 | Variable | Description |
 |----------|-------------|
-| `SNOWFLAKE_ACCOUNT` | Snowflake account identifier (e.g. `xy12345.us-east-1`) |
-| `SNOWFLAKE_USER` | Snowflake username |
-| `SNOWFLAKE_PASSWORD` | Snowflake password |
-| `SNOWFLAKE_WAREHOUSE` | Compute warehouse name |
-| `SNOWFLAKE_DATABASE` | Default database |
-| `SNOWFLAKE_SCHEMA` | Default schema |
-| `SNOWFLAKE_ROLE` | Optional role override |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_KEY` | Supabase key with insert access |
 | `GEMINI_API_KEY` | Google Generative AI API key |
 | `ELEVENLABS_API_KEY` | ElevenLabs API key |
-| `ELEVENLABS_VOICE_ID` | ElevenLabs voice ID to use for synthesis |
+| `ELEVENLABS_VOICE_ID` | ElevenLabs voice ID used for synthesis |
+
+`SUPABASE_*` variables are optional; the app still analyzes CSVs locally if Supabase is not configured.
 
 ### Running Locally
 
 ```bash
-# 1. Install backend dependencies
-cd backend
 pip install -r requirements.txt
-
-# 2. Start the API server
 uvicorn main:app --reload --port 8000
-
-# 3. Open the frontend
-#    Open frontend/index.html in your browser, or serve it:
-cd ../frontend
-python -m http.server 3000
-#    Then visit http://localhost:3000
 ```
 
-> **Note:** The frontend expects the API at `http://localhost:8000` by default.
-> Override by setting `window.API_BASE` before `app.js` is loaded if you deploy
-> the backend to a different URL.
+Then open [http://localhost:8000](http://localhost:8000).
 
 ---
 
@@ -126,19 +87,51 @@ python -m http.server 3000
 Liveness check.
 
 ```json
-{ "status": "ok" }
+{ "status": "ok", "service": "DataNarrator" }
 ```
 
-### `POST /narrate`
+### `POST /analyze`
 
-Run a SQL query, generate a narrative, and synthesize audio.
+Upload a CSV, summarize it, generate an insight, and optionally generate chart/audio output.
+
+**Request**
+
+- Multipart form upload with `file=<csv>`
+
+**Response body**
+
+```json
+{
+  "insight": "Three sentence narrative ending with one actionable recommendation.",
+  "chart_data": {
+    "type": "bar",
+    "labels": ["A", "B", "C"],
+    "values": [10, 8, 4],
+    "title": "Top Categories"
+  },
+  "audio_b64": "<base64-encoded MP3>",
+  "table_name": "upload_ab12cd34",
+  "row_count": 123,
+  "columns": ["category", "value"]
+}
+```
+
+Notes:
+
+- `chart_data` may be `null` when the dataset does not produce a meaningful chart.
+- `audio_b64` may be an empty string if TTS is unavailable or intentionally skipped.
+- Column information is returned as `columns`, not `col_count`.
+
+### `POST /followup`
+
+Ask a follow-up question about the generated insight.
 
 **Request body**
 
 ```json
 {
-  "sql":      "SELECT product, SUM(revenue) AS total FROM sales GROUP BY 1 ORDER BY 2 DESC LIMIT 5",
-  "question": "What were the top 5 products by revenue?"
+  "insight": "Original generated insight text",
+  "question": "What trend matters most here?"
 }
 ```
 
@@ -146,22 +139,17 @@ Run a SQL query, generate a narrative, and synthesize audio.
 
 ```json
 {
-  "records":      [ { "product": "Widget", "total": 120000 }, "..." ],
-  "narrative":    "Widget was the top-performing product, generating $120 000 in revenue...",
-  "audio_base64": "<base64-encoded MP3>"
+  "answer": "Short follow-up answer.",
+  "audio_b64": "<base64-encoded MP3>"
 }
 ```
-
-### `POST /query`
-
-Execute SQL and return raw records only (no narrative or audio).
 
 ---
 
 ## Running Tests
 
 ```bash
-pip install pytest pytest-mock snowflake-connector-python google-genai elevenlabs fastapi python-dotenv pydantic
+pip install pytest
 pytest tests/ -v
 ```
 
@@ -169,17 +157,14 @@ pytest tests/ -v
 
 ## Deployment (Render)
 
-The repository includes a `render.yaml` blueprint that deploys:
-
-- **`dataNarrator-backend`** — Python web service running the FastAPI app.
-- **`dataNarrator-frontend`** — Static site serving the HTML/CSS/JS files.
+The repository includes a `render.yaml` blueprint for deploying the FastAPI backend to Render.
 
 Steps:
 
-1. Fork / push the repo to GitHub.
-2. Create a new **Blueprint** in [Render](https://dashboard.render.com/) and point it at your repo.
-3. Set the secret environment variables (API keys, Snowflake credentials) in the Render dashboard.
-4. Deploy!
+1. Push the repo to GitHub.
+2. Create a new Blueprint in [Render](https://dashboard.render.com/).
+3. Set the required API keys and any optional Supabase credentials in the Render dashboard.
+4. Deploy.
 
 ---
 
@@ -188,8 +173,8 @@ Steps:
 | Layer | Technology |
 |-------|-----------|
 | Backend API | [FastAPI](https://fastapi.tiangolo.com/) + [Uvicorn](https://www.uvicorn.org/) |
-| Data warehouse | [Snowflake](https://www.snowflake.com/) |
-| AI narrative | [Google Gemini](https://ai.google.dev/) (`gemini-1.5-flash`) |
-| Text-to-speech | [ElevenLabs](https://elevenlabs.io/) (`eleven_multilingual_v2`) |
+| Storage | [Supabase](https://www.supabase.com/) |
+| AI insight | [Google Gemini](https://ai.google.dev/) |
+| Text-to-speech | [ElevenLabs](https://elevenlabs.io/) |
 | Frontend | Vanilla HTML / CSS / JavaScript |
 | Deployment | [Render](https://render.com/) |
