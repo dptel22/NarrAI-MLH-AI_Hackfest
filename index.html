@@ -177,6 +177,14 @@
             to { transform: rotate(360deg); }
         }
 
+        @media (prefers-reduced-motion: reduce) {
+            .loading-pulse,
+            .spinner,
+            .spinner-small {
+                animation: none;
+            }
+        }
+
         #loading-text {
             color: var(--text-muted);
             font-size: 1.1rem;
