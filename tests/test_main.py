@@ -9,7 +9,7 @@ client = TestClient(app)
 def test_health():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "service": "DataNarrator"}
+    assert response.json() == {"status": "ok"}
 
 @patch('main.supabase_agent')
 @patch('main.gemini_agent')

@@ -87,7 +87,7 @@ Then open [http://localhost:8000](http://localhost:8000).
 Liveness check.
 
 ```json
-{ "status": "ok", "service": "DataNarrator" }
+{ "status": "ok" }
 ```
 
 ### `POST /analyze`
