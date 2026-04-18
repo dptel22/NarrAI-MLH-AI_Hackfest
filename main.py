@@ -39,14 +39,26 @@ async def analyze(file: UploadFile = File(...)):
         df = pd.read_csv(file.file)
         table_name = "upload_" + uuid.uuid4().hex[:8]
 
-        supabase_agent.ingest_csv(df, table_name)
+        # Supabase logging is optional — never let it kill the analyze flow
+        try:
+            supabase_agent.ingest_csv(df, table_name)
+        except Exception as sb_err:
+            print(f"[warn] Supabase ingest skipped: {sb_err}")
+
         summary = supabase_agent.get_table_summary(df)
 
         gemini_result = gemini_agent.generate_insight(summary)
         insight_text = gemini_result.get("insight", "")
         chart_data = gemini_result.get("chart_data") or gemini_result.get("chart")
-        audio_bytes = elevenlabs_agent.text_to_audio(insight_text)
-        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8") if audio_bytes else ""
+
+        # Do NOT TTS the generic error string — return empty audio so frontend
+        # shows the text without attempting to play silence as insight.
+        is_error_insight = (insight_text == gemini_agent.ERROR_INSIGHT or not insight_text)
+        if is_error_insight:
+            audio_b64 = ""
+        else:
+            audio_bytes = elevenlabs_agent.text_to_audio(insight_text)
+            audio_b64 = base64.b64encode(audio_bytes).decode("utf-8") if audio_bytes else ""
 
         return {
             "insight": insight_text,
