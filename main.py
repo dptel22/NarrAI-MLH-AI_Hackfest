@@ -1,5 +1,6 @@
 import uuid
 import base64
+import io
 import pandas as pd
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,12 +37,21 @@ async def analyze(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Only CSV files are allowed.")
 
     try:
-        df = pd.read_csv(file.file)
-        table_name = "upload_" + uuid.uuid4().hex[:8]
+        contents = await file.read()
+
+        if len(contents) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB.")
+
+        df = pd.read_csv(io.BytesIO(contents))
+
+        if df.empty or len(df.columns) == 0:
+            raise HTTPException(status_code=400, detail="CSV file is empty or has no columns.")
+
+        session_id = "upload_" + uuid.uuid4().hex[:8]
 
         # Supabase logging is optional — never let it kill the analyze flow
         try:
-            supabase_agent.ingest_csv(df, table_name)
+            supabase_agent.ingest_csv(df, session_id)
         except Exception as sb_err:
             print(f"[warn] Supabase ingest skipped: {sb_err}")
 
@@ -51,8 +61,6 @@ async def analyze(file: UploadFile = File(...)):
         insight_text = gemini_result.get("insight", "")
         chart_data = gemini_result.get("chart_data") or gemini_result.get("chart")
 
-        # Do NOT TTS the generic error string — return empty audio so frontend
-        # shows the text without attempting to play silence as insight.
         is_error_insight = (insight_text == gemini_agent.ERROR_INSIGHT or not insight_text)
         if is_error_insight:
             audio_b64 = ""
@@ -64,10 +72,12 @@ async def analyze(file: UploadFile = File(...)):
             "insight": insight_text,
             "chart_data": chart_data,
             "audio_b64": audio_b64,
-            "table_name": table_name,
+            "table_name": session_id,
             "row_count": len(df),
             "columns": list(df.columns)
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -88,6 +98,8 @@ async def followup(req: FollowupRequest):
             "answer": answer,
             "audio_b64": audio_b64
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
