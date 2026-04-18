@@ -4,10 +4,8 @@ import os
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-# Configure Gemini
 api_key = os.getenv("GEMINI_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
@@ -40,11 +38,14 @@ def generate_insight(table_summary: dict) -> dict:
             system_instruction=system_instruction
         )
 
+        # Truncate sample to 500 chars to prevent prompt injection and runaway token usage
+        raw_sample = str(table_summary.get('sample', ''))[:500]
+
         prompt = (
             f"Analyze this dataset and return JSON:\n"
             f"- Row Count: {table_summary.get('row_count')}\n"
             f"- Columns: {table_summary.get('columns')}\n"
-            f"- Sample Data: {table_summary.get('sample')}\n"
+            f"- Sample Data: {raw_sample}\n"
             f"- Key Stats: {table_summary.get('stats')}\n"
         )
 
@@ -84,9 +85,6 @@ def generate_insight(table_summary: dict) -> dict:
 
 
 def answer_followup(insight: str, question: str) -> str:
-    """
-    Answer a follow-up question based on the previous insight.
-    """
     try:
         model = genai.GenerativeModel(GEMINI_MODEL)
         prompt = (
@@ -95,7 +93,6 @@ def answer_followup(insight: str, question: str) -> str:
             f"Answer the user's follow-up question in maximum 2 sentences.\n"
             f"Question: {question}"
         )
-
         response = model.generate_content(prompt)
         return response.text.strip()
     except Exception as e:
