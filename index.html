@@ -549,9 +549,10 @@
                 colCount.textContent = `${data.columns ? data.columns.length : 0} Columns`;
 
                 const cd = data.chart_data;
+                document.getElementById('chart-container').style.display = 'none';
+                if (window.chartInstance) { window.chartInstance.destroy(); window.chartInstance = null; }
                 if (cd && cd.labels && cd.labels.length > 0 && cd.values && cd.values.length > 0) {
                     document.getElementById('chart-container').style.display = 'block';
-                    if (window.chartInstance) window.chartInstance.destroy();
                     window.chartInstance = new Chart(document.getElementById('insight-chart'), {
                         type: cd.type,
                         data: {
@@ -579,7 +580,7 @@
                 resultsSection.classList.remove('hidden');
             } catch (error) {
                 console.error(error);
-                alert("An error occurred during analysis.");
+                showError("Something went wrong during analysis. Please try again.");
                 stopLoading();
                 uploadSection.classList.remove('hidden');
             }
@@ -621,7 +622,7 @@
                 }
             } catch (error) {
                 console.error(error);
-                alert("Failed to get follow-up answer.");
+                showError("Something went wrong. Please try again.");
                 followupLoading.classList.add('hidden');
             } finally {
                 followupBtn.disabled = false;
