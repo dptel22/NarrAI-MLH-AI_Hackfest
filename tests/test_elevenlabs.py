@@ -4,8 +4,9 @@ import elevenlabs_agent
 
 @patch('elevenlabs_agent.client')
 def test_text_to_audio(mock_client):
-    mock_audio_generator = [b"audio", b"data"]
-    mock_client.text_to_speech.convert.return_value = mock_audio_generator
+    mock_response = MagicMock()
+    mock_response.audio_content = b"audiodata"
+    mock_client.synthesize_speech.return_value = mock_response
 
     result = elevenlabs_agent.text_to_audio("Hello world")
 
