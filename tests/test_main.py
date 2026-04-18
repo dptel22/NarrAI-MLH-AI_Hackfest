@@ -21,7 +21,7 @@ def test_analyze(mock_uuid4, mock_elevenlabs, mock_gemini, mock_supabase):
     mock_uuid4.return_value = mock_uuid
 
     # Mock implementations
-    mock_supabase.ingest_csv.return_value = None
+    mock_supabase.ingest_csv.return_value = "upload_abcdef12"
     mock_supabase.get_table_summary.return_value = {"row_count": 1, "columns": ["col1", "col2"], "sample": [], "stats": {}}
 
     mock_gemini.generate_insight.return_value = {
@@ -51,9 +51,15 @@ def test_analyze(mock_uuid4, mock_elevenlabs, mock_gemini, mock_supabase):
     assert json_response["row_count"] == 1
     assert json_response["table_name"] == "upload_abcdef12"
 
-def test_analyze_rejects_non_csv_file():
-    txt_file = io.BytesIO(b"not,a,csv")
-    response = client.post("/analyze", files={"file": ("test.txt", txt_file, "text/plain")})
+@pytest.mark.parametrize("filename,content_type", [
+    ("test.txt", "text/plain"),
+    ("test.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+    ("test.json", "application/json"),
+    ("test", "application/octet-stream"),
+])
+def test_analyze_rejects_non_csv_file(filename, content_type):
+    uploaded_file = io.BytesIO(b"not,a,csv")
+    response = client.post("/analyze", files={"file": (filename, uploaded_file, content_type)})
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Only CSV files are allowed."
@@ -61,7 +67,6 @@ def test_analyze_rejects_non_csv_file():
 @patch('main.supabase_agent')
 def test_analyze_returns_500_on_processing_error(mock_supabase):
     mock_supabase.ingest_csv.side_effect = RuntimeError("ingest failed")
-    mock_supabase.get_table_summary.return_value = {"row_count": 1, "columns": ["c"], "sample": [], "stats": {}}
 
     csv_file = io.BytesIO(b"col1\nval1\n")
     response = client.post("/analyze", files={"file": ("test.csv", csv_file, "text/csv")})

@@ -1,3 +1,4 @@
+import json
 from unittest.mock import patch, MagicMock
 import gemini_agent
 
@@ -5,7 +6,10 @@ import gemini_agent
 def test_generate_insight_parses_json(mock_model_class):
     mock_model = MagicMock()
     mock_response = MagicMock()
-    mock_response.text = '{"insight":"This is a mocked insight.","chart":{"type":"bar","title":"T","labels":["a"],"values":[1]}}'
+    mock_response.text = json.dumps({
+        "insight": "This is a mocked insight.",
+        "chart": {"type": "bar", "title": "T", "labels": ["a"], "values": [1]},
+    })
     mock_model.generate_content.return_value = mock_response
     mock_model_class.return_value = mock_model
 
@@ -20,7 +24,11 @@ def test_generate_insight_parses_json(mock_model_class):
 def test_generate_insight_strips_markdown_json_block(mock_model_class):
     mock_model = MagicMock()
     mock_response = MagicMock()
-    mock_response.text = '```json\n{"insight":"From markdown","chart":{"type":"pie","title":"T","labels":["x"],"values":[100]}}\n```'
+    payload = json.dumps({
+        "insight": "From markdown",
+        "chart": {"type": "pie", "title": "T", "labels": ["x"], "values": [100]},
+    })
+    mock_response.text = f"```json\n{payload}\n```"
     mock_model.generate_content.return_value = mock_response
     mock_model_class.return_value = mock_model
 

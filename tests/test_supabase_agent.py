@@ -8,6 +8,8 @@ def test_normalize_column_name():
     assert supabase_agent._normalize_column_name("  Revenue ($)  ") == "revenue"
     assert supabase_agent._normalize_column_name("Total   Sales") == "total_sales"
     assert supabase_agent._normalize_column_name("A__B") == "a_b"
+    assert supabase_agent._normalize_column_name("") == ""
+    assert supabase_agent._normalize_column_name("!!!") == ""
 
 
 def test_create_supabase_client_requires_env(monkeypatch):
@@ -74,3 +76,13 @@ def test_get_table_summary_shape():
     assert isinstance(summary["sample"], list)
     assert len(summary["sample"]) == 2
     assert "a" in summary["stats"]
+
+
+def test_get_table_summary_empty_dataframe():
+    df = pd.DataFrame()
+
+    try:
+        supabase_agent.get_table_summary(df)
+        assert False, "Expected ValueError for empty DataFrame with no columns"
+    except ValueError as exc:
+        assert "Cannot describe a DataFrame without columns" in str(exc)
