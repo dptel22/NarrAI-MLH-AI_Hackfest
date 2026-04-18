@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Data Narrator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-color: #0f0f0f;
@@ -131,10 +134,15 @@
             font-weight: 500;
         }
         #insight-text {
-            font-size: 1.3rem;
+            font-size: 1.4rem;
             line-height: 1.6;
             margin-bottom: 1.5rem;
             color: #ffffff;
+            border-left: 3px solid var(--accent);
+            padding-left: 1rem;
+        }
+        #insight-text.populated {
+            box-shadow: 0 0 0 1px rgba(79, 152, 163, 0.3);
         }
         audio {
             width: 100%;
@@ -338,9 +346,13 @@
                 
                 currentInsight = data.insight;
                 insightText.textContent = currentInsight;
+                insightText.classList.toggle('populated', Boolean(currentInsight));
                 insightAudio.src = `data:audio/mp3;base64,${data.audio_b64}`;
+                insightAudio.load();
+                insightAudio.play().catch(() => {});
+
                 rowCount.textContent = `${data.row_count || 0} Rows`;
-                colCount.textContent = `${data.col_count || 0} Columns`;
+                colCount.textContent = `${data.columns.length} Columns`;
                 
                 stopLoading();
                 resultsSection.classList.remove('hidden');
@@ -373,10 +385,11 @@
                 const data = await response.json();
                 
                 followupAnswer.textContent = data.answer;
-                followupAudio.src = `data:audio/mp3;base64,${data.audio_b64}`;
-                
                 followupLoading.classList.add('hidden');
                 followupResult.classList.remove('hidden');
+                followupAudio.src = `data:audio/mp3;base64,${data.audio_b64}`;
+                followupAudio.load();
+                followupAudio.play().catch(() => {});
             } catch (error) {
                 console.error(error);
                 alert("Failed to get follow-up answer.");
@@ -400,6 +413,8 @@
             followupResult.classList.add('hidden');
             resultsSection.classList.add('hidden');
             uploadSection.classList.remove('hidden');
+            insightText.textContent = "";
+            insightText.classList.remove('populated');
             if (insightAudio) insightAudio.pause();
             if (followupAudio) followupAudio.pause();
         });
