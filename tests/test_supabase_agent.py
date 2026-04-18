@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 from unittest.mock import MagicMock, patch
 
 import supabase_agent
@@ -16,11 +17,8 @@ def test_create_supabase_client_requires_env(monkeypatch):
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.delenv("SUPABASE_KEY", raising=False)
 
-    try:
+    with pytest.raises(ValueError, match="SUPABASE_URL and SUPABASE_KEY"):
         supabase_agent._create_supabase_client()
-        assert False, "Expected ValueError when env vars are missing"
-    except ValueError as exc:
-        assert "SUPABASE_URL and SUPABASE_KEY" in str(exc)
 
 
 @patch("supabase_agent.create_client")
@@ -81,8 +79,5 @@ def test_get_table_summary_shape():
 def test_get_table_summary_empty_dataframe():
     df = pd.DataFrame()
 
-    try:
+    with pytest.raises(ValueError, match="Cannot describe a DataFrame without columns"):
         supabase_agent.get_table_summary(df)
-        assert False, "Expected ValueError for empty DataFrame with no columns"
-    except ValueError as exc:
-        assert "Cannot describe a DataFrame without columns" in str(exc)
