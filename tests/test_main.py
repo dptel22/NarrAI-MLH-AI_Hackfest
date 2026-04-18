@@ -51,18 +51,21 @@ def test_analyze(mock_uuid4, mock_elevenlabs, mock_gemini, mock_supabase):
     assert json_response["row_count"] == 1
     assert json_response["table_name"] == "upload_abcdef12"
 
-@pytest.mark.parametrize("filename,content_type", [
-    ("test.txt", "text/plain"),
-    ("test.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
-    ("test.json", "application/json"),
-    ("test", "application/octet-stream"),
+@pytest.mark.parametrize("filename,content_type,expected_status", [
+    ("", "application/octet-stream", 422),
+    ("test.txt", "text/plain", 400),
+    ("test.csv.txt", "text/plain", 400),
+    ("test.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 400),
+    ("test.json", "application/json", 400),
+    ("test", "application/octet-stream", 400),
 ])
-def test_analyze_rejects_non_csv_file(filename, content_type):
+def test_analyze_rejects_non_csv_file(filename, content_type, expected_status):
     uploaded_file = io.BytesIO(b"not,a,csv")
     response = client.post("/analyze", files={"file": (filename, uploaded_file, content_type)})
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Only CSV files are allowed."
+    assert response.status_code == expected_status
+    if expected_status == 400:
+        assert response.json()["detail"] == "Only CSV files are allowed."
 
 @patch('main.supabase_agent')
 @patch('main.gemini_agent')
@@ -122,5 +125,6 @@ def test_followup_returns_500_when_answer_empty(mock_gemini):
     )
 
     assert response.status_code == 500
-    assert isinstance(response.json()["detail"], str)
-    assert response.json()["detail"]
+    detail = response.json()["detail"]
+    assert isinstance(detail, str)
+    assert detail
