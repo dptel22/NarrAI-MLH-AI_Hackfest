@@ -39,6 +39,7 @@ def test_analyze(mock_elevenlabs, mock_gemini, mock_supabase):
     assert "audio_b64" in json_response
     assert "columns" in json_response
     assert json_response["insight"] == "Mocked insight"
+    assert json_response["audio_b64"] is not None
     assert json_response["columns"] == ["col1", "col2"]
 
 @patch('main.gemini_agent')
