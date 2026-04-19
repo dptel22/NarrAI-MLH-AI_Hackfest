@@ -1,6 +1,8 @@
-# DataNarrator - MLH AI Hackfest
+# NarrAI — MLH AI Hackfest
 
-> Upload a CSV, optionally log it to Supabase, generate a natural-language insight with Google Gemini, and listen to it with ElevenLabs from a simple browser UI.
+> Upload a CSV, get a natural-language insight spoken aloud — powered by Gemini 2.5 Flash + gTTS. Ask follow-up questions and get spoken answers. Upload metadata is logged to Supabase.
+
+Live demo: [datanarrator-mlh-ai-hackfest.onrender.com](https://datanarrator-mlh-ai-hackfest.onrender.com)
 
 ---
 
@@ -12,9 +14,9 @@ Browser (index.html)
    |  POST /followup { insight, question }
    v
 FastAPI backend (main.py)
-   |- supabase_agent.py    -> optional CSV row ingestion
-   |- gemini_agent.py      -> insight + chart generation
-   `- elevenlabs_agent.py  -> MP3 synthesis
+   |- supabase_agent.py    -> fire-and-forget upload logging to csv_uploads table
+   |- gemini_agent.py      -> insight + chart generation (gemini-2.5-flash)
+   `- tts_agent.py         -> MP3 synthesis via gTTS
 ```
 
 ---
@@ -22,18 +24,19 @@ FastAPI backend (main.py)
 ## Project Structure
 
 ```text
-DataNarrator--MLH-AI-Hackfest/
+NarrAI-MLH-AI_Hackfest/
 |-- main.py
 |-- index.html
 |-- supabase_agent.py
 |-- gemini_agent.py
-|-- elevenlabs_agent.py
+|-- tts_agent.py
 |-- requirements.txt
 |-- render.yaml
 |-- tests/
 |   |-- test_main.py
 |   |-- test_gemini.py
-|   `-- test_elevenlabs.py
+|   |-- test_tts.py
+|   `-- test_supabase_agent.py
 `-- README.md
 ```
 
@@ -48,26 +51,17 @@ DataNarrator--MLH-AI-Hackfest/
 | Python | >= 3.11 |
 | pip | latest |
 | Google Gemini API key | [aistudio.google.com](https://aistudio.google.com/) |
-| ElevenLabs API key | [elevenlabs.io](https://elevenlabs.io/) |
-| Supabase project | optional |
+| Supabase project | optional — app works without it |
 
 ### Environment Variables
 
-Copy the example file and fill in your credentials:
-
-```bash
-cp .env.example .env
-```
-
 | Variable | Description |
 |----------|-------------|
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_KEY` | Supabase key with insert access |
 | `GEMINI_API_KEY` | Google Generative AI API key |
-| `ELEVENLABS_API_KEY` | ElevenLabs API key |
-| `ELEVENLABS_VOICE_ID` | ElevenLabs voice ID used for synthesis |
+| `SUPABASE_URL` | Supabase project URL (optional) |
+| `SUPABASE_KEY` | Supabase service-role key (optional) |
 
-`SUPABASE_*` variables are optional; the app still analyzes CSVs locally if Supabase is not configured.
+`SUPABASE_*` variables are optional. If not set, upload logging is silently skipped and all analysis still works normally.
 
 ### Running Locally
 
@@ -77,6 +71,24 @@ uvicorn main:app --reload --port 8000
 ```
 
 Then open [http://localhost:8000](http://localhost:8000).
+
+### Supabase Table Setup (optional)
+
+If you want upload logging, run this once in your Supabase SQL editor:
+
+```sql
+create extension if not exists pgcrypto;
+
+create table if not exists public.csv_uploads (
+  id uuid primary key default gen_random_uuid(),
+  session_id text not null,
+  row_count integer,
+  columns text[],
+  created_at timestamptz default now()
+);
+
+alter table public.csv_uploads enable row level security;
+```
 
 ---
 
@@ -92,13 +104,11 @@ Liveness check.
 
 ### `POST /analyze`
 
-Upload a CSV, summarize it, generate an insight, and optionally generate chart/audio output.
+Upload a CSV — generates a natural-language insight, a chart, and an audio briefing.
 
-**Request**
+**Request:** multipart form with `file=<csv>` (max 10MB, `.csv` only)
 
-- Multipart form upload with `file=<csv>`
-
-**Response body**
+**Response**
 
 ```json
 {
@@ -116,17 +126,14 @@ Upload a CSV, summarize it, generate an insight, and optionally generate chart/a
 }
 ```
 
-Notes:
-
 - `chart_data` may be `null` when the dataset does not produce a meaningful chart.
-- `audio_b64` may be an empty string if TTS is unavailable or intentionally skipped.
-- Column information is returned as `columns`, not `col_count`.
+- `audio_b64` may be an empty string if TTS fails.
 
 ### `POST /followup`
 
 Ask a follow-up question about the generated insight.
 
-**Request body**
+**Request**
 
 ```json
 {
@@ -135,7 +142,7 @@ Ask a follow-up question about the generated insight.
 }
 ```
 
-**Response body**
+**Response**
 
 ```json
 {
@@ -157,13 +164,11 @@ pytest tests/ -v
 
 ## Deployment (Render)
 
-The repository includes a `render.yaml` blueprint for deploying the FastAPI backend to Render.
-
-Steps:
+The repository includes a `render.yaml` blueprint.
 
 1. Push the repo to GitHub.
 2. Create a new Blueprint in [Render](https://dashboard.render.com/).
-3. Set the required API keys and any optional Supabase credentials in the Render dashboard.
+3. Set `GEMINI_API_KEY` and optionally `SUPABASE_URL` / `SUPABASE_KEY` in the Render dashboard.
 4. Deploy.
 
 ---
@@ -173,8 +178,8 @@ Steps:
 | Layer | Technology |
 |-------|-----------|
 | Backend API | [FastAPI](https://fastapi.tiangolo.com/) + [Uvicorn](https://www.uvicorn.org/) |
-| Storage | [Supabase](https://www.supabase.com/) |
-| AI insight | [Google Gemini](https://ai.google.dev/) |
-| Text-to-speech | [ElevenLabs](https://elevenlabs.io/) |
-| Frontend | Vanilla HTML / CSS / JavaScript |
+| AI insight + chart | [Google Gemini 2.5 Flash](https://ai.google.dev/) |
+| Text-to-speech | [gTTS](https://gtts.readthedocs.io/) |
+| Upload logging | [Supabase](https://www.supabase.com/) |
+| Frontend | Vanilla HTML / CSS / JavaScript + Chart.js |
 | Deployment | [Render](https://render.com/) |
