@@ -321,7 +321,7 @@
                 <path d="M44 36L44 44" stroke="#4f98a3" stroke-width="4" stroke-linecap="round"/>
             </svg>
             <h1>DataNarrator</h1>
-            <p class="subtitle">Turn any CSV into an AI voice briefing — powered by Gemini & ElevenLabs</p>
+            <p class="subtitle">Turn any CSV into an AI voice briefing — powered by Gemini &amp; ElevenLabs</p>
         </header>
 
         <!-- Upload Section -->
@@ -361,7 +361,7 @@
 
             <div class="tech-stack-row">
                 <span class="chip">Gemini 2.5 Flash</span>
-                <span class="chip">Google Cloud TTS</span>
+                <span class="chip">gTTS</span>
                 <span class="chip">Supabase</span>
             </div>
 
@@ -390,6 +390,8 @@
     </div>
 
     <script>
+        // Empty string = same-origin. FastAPI serves this file via FileResponse("/").
+        // Do NOT change to a hardcoded URL — this breaks on Render.
         const BACKEND_URL = "";
 
         function showError(message) {
@@ -510,6 +512,11 @@
                 showError('File too large. Maximum size is 10MB.');
                 return;
             }
+            // [F-09] Reset follow-up state before every new analysis
+            followupAnswer.textContent = "";
+            followupResult.classList.add('hidden');
+            followupLoading.classList.add('hidden');
+            followupInput.value = "";
             startLoading();
             
             const formData = new FormData();
