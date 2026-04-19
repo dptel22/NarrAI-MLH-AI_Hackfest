@@ -60,6 +60,7 @@ async def analyze(file: UploadFile = File(...)):
         session_id = "upload_" + uuid.uuid4().hex[:8]
 
         summary = supabase_agent.get_table_summary(df)
+        supabase_agent.log_upload(session_id, len(df), list(df.columns))
 
         gemini_result = gemini_agent.generate_insight(summary)
         insight_text = gemini_result.get("insight", "")

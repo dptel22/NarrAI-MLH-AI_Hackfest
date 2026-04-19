@@ -1,10 +1,15 @@
+import logging
+import os
 import re
 
 import pandas as pd
 from dotenv import load_dotenv
+from supabase import create_client
 
 # Load environment variables from the local .env file.
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_column_name(column_name: str) -> str:
@@ -26,3 +31,23 @@ def get_table_summary(df: pd.DataFrame) -> dict:
         "sample": df.head(5).to_dict(orient="records"),
         "stats": df.describe().to_dict(),
     }
+
+
+def log_upload(session_id, row_count, columns) -> None:
+    try:
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_KEY")
+
+        if not supabase_url or not supabase_key:
+            return
+
+        client = create_client(supabase_url, supabase_key)
+        client.table("csv_uploads").insert(
+            {
+                "session_id": session_id,
+                "row_count": row_count,
+                "columns": list(columns),
+            }
+        ).execute()
+    except Exception:
+        logger.exception("Failed to log upload to Supabase.")
